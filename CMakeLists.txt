@@ -38,6 +38,7 @@ SET(FLUTE_HOME ${PROJECT_SOURCE_DIR})
 
 ADD_LIBRARY(flute STATIC flute.cpp)
 
-TARGET_INCLUDE_DIRECTORIES(flute PUBLIC ${FLUTE_HOME})
+TARGET_INCLUDE_DIRECTORIES(flute PUBLIC ${FLUTE_HOME}
+                                        ${FLUTE_HOME}/include)
 
 

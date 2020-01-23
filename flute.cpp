@@ -35,6 +35,12 @@
 #include <math.h>
 #include <algorithm>
 #include "flute.h"
+#include "initTables.h"
+#include <string>
+#include <cstring>
+#include <vector>
+#include <iostream>
+#include <fstream>
 
 namespace Flute {
 
@@ -80,8 +86,10 @@ template <class T> inline T ADIFF(T x, T y) {
 }
 
 void readLUT() {
+        initPOWV();
+        initPOST();
         unsigned char charnum[256], line[32], *linep, c;
-        FILE *fpwv, *fprt;
+        FILE *fpwv;
         struct csoln *p;
         int d, i, j, k, kk, ns, nn;
 
@@ -93,40 +101,49 @@ void readLUT() {
                 else  // if (i=='$' || i=='\n' || ... )
                         charnum[i] = 0;
         }
-
-        fpwv = fopen(FLUTE_POWVFILE, "r");
-        if (fpwv == NULL) {
-                printf("Error in opening %s\n", FLUTE_POWVFILE);
-                exit(1);
-        }
-
-#if FLUTE_ROUTING == 1
-        fprt = fopen(FLUTE_POSTFILE, "r");
-        if (fprt == NULL) {
-                printf("Error in opening %s\n", FLUTE_POSTFILE);
-                exit(1);
-        }
-#endif
-
+        
+        int powv_line = 0;
+        int post_line = 0;
         for (d = 4; d <= FLUTE_D; d++) {
-                fscanf(fpwv, "d=%d\n", &d);
+                for (int i = powv_line; i < POWV.size(); i++) {
+                        if (POWV[i] == std::string("d=" + std::to_string(d))) {
+                                powv_line++;
+                                break;
+                        } else {
+                                powv_line++;
+                                continue;
+                        }
+                }
+                
 #if FLUTE_ROUTING == 1
-                fscanf(fprt, "d=%d\n", &d);
+                for (int i = post_line; i < POST.size(); i++) {
+                        if (POST[i] == std::string("d=" + std::to_string(d))) {
+                                post_line++;
+                                break;
+                        } else {
+                                post_line++;
+                                continue;
+                        }
+                }
 #endif
                 for (k = 0; k < numgrp[d]; k++) {
-                        ns = (int)charnum[fgetc(fpwv)];
+                        ns = (int)charnum[POWV[powv_line][0]];
 
                         if (ns == 0) {  // same as some previous group
-                                fscanf(fpwv, "%d\n", &kk);
+                                std::string kk_str = POWV[powv_line].substr(1, POWV[powv_line].size() - 1);
+                                kk = stoi(kk_str);
+                                powv_line++;
                                 numsoln[d][k] = numsoln[d][kk];
                                 LUT[d][k] = LUT[d][kk];
                         } else {
-                                fgetc(fpwv);  // '\n'
+                                fgetc(fpwv);
+                                powv_line++;
                                 numsoln[d][k] = ns;
                                 p = (struct csoln *)malloc(ns * sizeof(struct csoln));
                                 LUT[d][k] = p;
                                 for (i = 1; i <= ns; i++) {
-                                        linep = (unsigned char *)fgets((char *)line, 32, fpwv);
+                                        std::copy(POWV[powv_line].begin(), POWV[powv_line].end(), linep);
+                                        powv_line++;
                                         p->parent = charnum[*(linep++)];
                                         j = 0;
                                         while ((p->seg[j++] = charnum[*(linep++)]) != 0)
@@ -136,14 +153,18 @@ void readLUT() {
                                                 ;
 #if FLUTE_ROUTING == 1
                                         nn = 2 * d - 2;
-                                        fread(line, 1, d - 2, fprt);
+                                        std::string post_line0 = POST[post_line].substr(0, d-2);
+                                        std::copy(post_line0.begin(), post_line0.end(), line);
                                         linep = line;
                                         for (j = d; j < nn; j++) {
                                                 c = charnum[*(linep++)];
                                                 p->rowcol[j - d] = c;
                                         }
-                                        fread(line, 1, nn / 2 + 1, fprt);
-                                        linep = line;  // last char \n
+                                        
+                                        std::string post_line1 = POST[post_line].substr(d - 2, nn / 2 + 1);
+                                        std::copy(post_line1.begin(), post_line1.end(), line);
+                                        post_line++;
+                                        linep = line;  // last char \n 
                                         for (j = 0; j < nn;) {
                                                 c = *(linep++);
                                                 p->neighbor[j++] = c / 16;
